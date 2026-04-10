@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MathBot v6.0 Ultimate (Memoria + Fixes)</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/12.4.1/math.min.js"></script>
+    <style>
+        :root { --primary: #2b5876; --secondary: #4e4376; --accent: #ffb88c; --user-msg: #3498db; --btn: #2980b9; }
+        body { font-family: 'Segoe UI', sans-serif; background: #e0eafc; display: flex; justify-content: center; padding: 10px; margin: 0; }
+        .chat-container { width: 100%; max-width: 800px; height: 95vh; background: white; border-radius: 12px; box-shadow: 0 15px 35px rgba(0,0,0,0.2); display: flex; flex-direction: column; overflow: hidden; }
+        .header { background: linear-gradient(to right, var(--primary), var(--secondary)); color: white; padding: 15px; text-align: center; font-size: 1.3em; font-weight: bold; position: relative;}
+        .clear-btn { position: absolute; right: 15px; top: 15px; background: rgba(255,255,255,0.2); border: none; color: white; padding: 5px 10px; border-radius: 5px; cursor: pointer; font-size: 0.8em; }
+        .clear-btn:hover { background: rgba(255,255,255,0.4); }
+        #chat-box { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 12px; background: #f8f9fa; scroll-behavior: smooth; }
+        .msg { padding: 14px 18px; border-radius: 18px; max-width: 85%; line-height: 1.5; font-size: 0.95em; word-wrap: break-word; }
+        .bot { background: white; align-self: flex-start; border: 1px solid #e1e1e1; color: #333; box-shadow: 2px 2px 8px rgba(0,0,0,0.04); }
+        .user { background: linear-gradient(to right, var(--user-msg), var(--btn)); color: white; align-self: flex-end; }
+        .level-tag { font-size: 0.7em; font-weight: bold; padding: 3px 10px; border-radius: 12px; margin-bottom: 8px; display: inline-block; text-transform: uppercase; letter-spacing: 0.5px;}
+        .tag-razonamiento { background: #f39c12; color: white; }
+        .tag-calculo { background: #27ae60; color: white; }
+        .tag-visual { background: #8e44ad; color: white; }
+        .tag-info { background: #34495e; color: white; }
+        .tag-error { background: #e74c3c; color: white; }
+        .input-area { display: flex; padding: 15px; background: white; border-top: 1px solid #ddd; }
+        input { flex: 1; border: 2px solid #e1e1e1; padding: 12px; border-radius: 25px; outline: none; font-size: 1em; transition: 0.3s;}
+        input:focus { border-color: var(--btn); }
+        button { background: var(--btn); color: white; border: none; padding: 10px 25px; margin-left: 10px; border-radius: 25px; cursor: pointer; transition: 0.3s; font-weight: bold; }
+        button:hover { background: var(--primary); }
+        code { background: #edf2f7; padding: 3px 6px; border-radius: 4px; font-family: monospace; color: #c53030; font-weight: bold;}
+        .svg-container { background: white; border: 1px solid #ccc; border-radius: 8px; margin-top: 10px; padding: 5px; text-align: center; }
+    </style>
+</head>
+<body>
+
+<div class="chat-container">
+    <div class="header">
+        💾 MathBot v6.0
+        <button class="clear-btn" onclick="clearHistory()">Limpiar Pizarra</button>
+    </div>
+    <div id="chat-box"></div>
+    <div class="input-area">
+        <input type="text" id="user-input" placeholder="Ej: 20 * 16, simplificar: 15/3, o (4, -2)">
+        <button onclick="sendMessage()">Enviar</button>
+    </div>
+</div>
+
+<script>
+    let chatHistory = [];
+    let lastExpr = "";
+
+    // 1. CARGAR HISTORIAL AL INICIAR
+    window.onload = function() {
+        const saved = localStorage.getItem('mathBotV6');
+        if (saved) {
+            chatHistory = JSON.parse(saved);
+            chatHistory.forEach(msg => renderMessage(msg.text, msg.sender, msg.tag));
+            
+            // Hacer scroll al final después de cargar
+            const chatBox = document.getElementById('chat-box');
+            chatBox.scrollTop = chatBox.scrollHeight;
+        } else {
+            const welcomeMsg = "¡Hola! He sido actualizado. Ahora recuerdo nuestras charlas y mi motor de cálculo es infalible. 🧠<br><br>" +
+                               "• <b>Calcular:</b> Escribe directamente la operación (ej: <code>20 * 16</code>) o usa <code>calc: 2^5</code>.<br>" +
+                               "• <b>Pensar:</b> <code>simplificar: 20 * 16</code> (Para guiarte sin darte el resultado).<br>" +
+                               "• <b>Visualizar:</b> Escribe una coordenada como <code>(3, -2)</code>.<br>" +
+                               "• <b>Borrar:</b> Escribe <code>borrar</code> o usa el botón de arriba para limpiar mi memoria.";
+            saveAndShowMessage(welcomeMsg, 'bot', 'Info');
+        }
+    };
+
+    function clearHistory() {
+        localStorage.removeItem('mathBotV6');
+        chatHistory = [];
+        document.getElementById('chat-box').innerHTML = "";
+        saveAndShowMessage("Historial borrado. ¡Empecemos de cero!", "bot", "Info");
+    }
+
+    function sendMessage() {
+        const input = document.getElementById('user-input');
+        const text = input.value.trim();
+        if (!text) return;
+        
+        saveAndShowMessage(text, 'user');
+        handleResponse(text);
+        input.value = "";
+    }
+
+    function saveAndShowMessage(text, sender, tag = null) {
+        renderMessage(text, sender, tag);
+        chatHistory.push({text, sender, tag});
+        localStorage.setItem('mathBotV6', JSON.stringify(chatHistory));
+    }
+
+    function renderMessage(text, sender, tag) {
+        const chatBox = document.getElementById('chat-box');
+        const div = document.createElement('div');
+        div.classList.add('msg', sender);
+        
+        let tagHtml = tag ? `<span class="level-tag tag-${tag.toLowerCase()}">${tag}</span><br>` : '';
+        div.innerHTML = tagHtml + text.replace(/\n/g, '<br>');
+        
+        chatBox.appendChild(div);
+        setTimeout(() => chatBox.scrollTop = chatBox.scrollHeight, 50);
+    }
+
+    // Dibujador SVG
+    function drawMiniGrid(x, y) {
+        const size = 150;
+        const center = size / 2;
+        const scale = 10;
+        const px = center + (x * scale);
+        const py = center - (y * scale); 
+
+        return `
+        <div class="svg-container">
+            <svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
+                <line x1="0" y1="${center}" x2="${size}" y2="${center}" stroke="#bdc3c7" stroke-width="2"/>
+                <line x1="${center}" y1="0" x2="${center}" y2="${size}" stroke="#bdc3c7" stroke-width="2"/>
+                <circle cx="${px}" cy="${py}" r="5" fill="#e74c3c" />
+                <line x1="${center}" y1="${center}" x2="${px}" y2="${py}" stroke="#e74c3c" stroke-dasharray="4" stroke-width="1.5"/>
+            </svg>
+            <br><small>(${x}, ${y})</small>
+        </div>`;
+    }
+
+    function handleResponse(input) {
+        const lowInput = input.toLowerCase();
+
+        // Comando para borrar memoria
+        if (lowInput === "borrar" || lowInput === "limpiar") {
+            return clearHistory();
+        }
+
+        // 1. MODO "PENSAR" (simplificar:)
+        if (lowInput.startsWith("simplificar:") || lowInput.startsWith("simplificar ")) {
+            const expr = lowInput.replace(/^simplificar\s*:?\s*/i, "").trim();
+            const simplification = generateNoResultSimplification(expr);
+            return saveAndShowMessage(simplification, "bot", "Razonamiento");
+        }
+
+        // 2. MODO VISUAL: Coordenadas 2D (x, y)
+        if (lowInput.match(/^\s*\(-?\d+\s*,\s*-?\d+\s*\)\s*$/)) {
+            const coords = input.match(/-?\d+/g);
+            let x = parseInt(coords[0]);
+            let y = parseInt(coords[1]);
+            
+            let guide = `Ruta visual para (${x}, ${y}):<br>`;
+            guide += `Eje X: <b>${Math.abs(x)}</b> pasos a la ${x >= 0 ? 'derecha' : 'izquierda'}.<br>`;
+            guide += `Eje Y: <b>${Math.abs(y)}</b> pasos hacia ${y >= 0 ? 'arriba' : 'abajo'}.<br>`;
+            guide += drawMiniGrid(x, y);
+            
+            return saveAndShowMessage(guide, "bot", "Visual");
+        }
+
+        // Conocimientos básicos
+        if (lowInput.includes("porcentaje") || lowInput.includes("%")) {
+            return saveAndShowMessage("<b>Porcentajes:</b> Significa 'por cada 100'. El 20% de 50 es 10. ¡Pruébalo escribiendo <code>20% * 50</code>!", "bot", "Info");
+        }
+
+        // 3. MODO CÁLCULO MEJORADO (Acepta con o sin 'calc:')
+        let isCalcCommand = lowInput.startsWith("calc:") || lowInput.startsWith("calc ");
+        let exprToEval = input;
+
+        // Limpiamos el texto si usó el comando
+        if (isCalcCommand) {
+            exprToEval = input.replace(/^calc\s*:?\s*/i, '').trim();
+        }
+
+        try {
+            // Reemplazo seguro para fracciones mixtas (Ej: "2 1/2" -> "(2 + 1/2)")
+            let evalExpr = exprToEval.replace(/(\d+)\s+(\d+\/\d+)/g, '($1 + $2)');
+            
+            // Intentamos evaluar el string en Math.js
+            const result = math.evaluate(evalExpr);
+            
+            // Validamos que el resultado sea un número o una matriz válida, no un string ni una función base
+            if (result !== undefined && typeof result !== 'function' && typeof result !== 'string') {
+                lastExpr = evalExpr;
+                // Formateamos el resultado para evitar números larguísimos como 0.3333333333333333
+                let formattedResult = math.format(result, {precision: 10});
+                
+                let response = `Resultado: <b>${formattedResult}</b><br><br>`;
+                response += `<i>Para razonarlo, usa:</i> <code>simplificar: ${exprToEval}</code>`;
+                return saveAndShowMessage(response, "bot", "Calculo");
+            }
+        } catch (e) {
+            // Si el usuario obligó a usar calc: y falló, mostramos el error
+            if (isCalcCommand) {
+                return saveAndShowMessage(`Ups, no pude resolver "<b>${exprToEval}</b>".<br>Verifica los símbolos (usa +, -, *, /, ^).`, "bot", "Error");
+            }
+            // Si no usó calc: y falló, simplemente ignoramos el error matemático y pasamos al mensaje por defecto
+        }
+
+        saveAndShowMessage("No detecté una operación clara. Escribe un cálculo directo (ej: <code>15 * 4</code>), usa <code>simplificar: [operación]</code> o pregúntame teoría.", "bot");
+    }
+
+    // LÓGICA DE SIMPLIFICACIÓN SIN DAR EL RESULTADO
+    function generateNoResultSimplification(expr) {
+        if (expr.includes('*')) {
+            const parts = expr.split('*').map(p => parseFloat(p.trim()));
+            if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
+                const a = parts[0];
+                const b = parts[1];
+                if (b > 10) {
+                    const decenas = Math.floor(b / 10) * 10;
+                    const unidades = b % 10;
+                    return `<b>Descomponiendo tu cálculo (${a} × ${b}):</b><br><br>
+                            Paso 1: Multiplica ${a} × ${decenas} = ?<br>
+                            Paso 2: Multiplica ${a} × ${unidades} = ?<br>
+                            Paso 3: ¡Suma ambos resultados mentalmente!<br><br>
+                            <i>(Si necesitas la respuesta, solo escribe la operación).</i>`;
+                }
+            }
+            return `Piénsalo como sumas repetidas. Suma el primer número tantas veces como indique el segundo.`;
+        }
+        
+        if (expr.includes('+') || expr.includes('-')) {
+            return `<b>Estrategia:</b> Intenta redondear los números a la decena más cercana, súmalos/réstalos en tu mente, y luego ajusta la diferencia.`;
+        }
+
+        if (expr.includes('/')) {
+            return `<b>Imagina rebanadas:</b> Estás dividiendo un total en partes iguales. Si divides dinero o comida, ¿cuánto le tocaría a cada persona/parte?`;
+        }
+
+        if (expr.includes('^')) {
+            const parts = expr.split('^');
+            return `<b>Expandiendo la potencia:</b> Multiplica la base (${parts[0]}) por sí misma ${parts[1]} veces.<br>Ejemplo: ${parts[0]} × ${parts[0]}... ¿Cuánto da?`;
+        }
+
+        return `Tómate tu tiempo. Aplica la jerarquía de operaciones: 1º Paréntesis, 2º Potencias, 3º Multiplicación/División, 4º Sumas/Restas.`;
+    }
+</script>
+
+</body>
+</html>

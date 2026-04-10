@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LOBOTOMY AI - CLEAN TTS</title>
+    <style>
+        body { background: #000; color: #4dfc47; font-family: 'Courier New', monospace; display: flex; flex-direction: column; align-items: center; height: 100vh; margin: 0; padding: 10px; box-sizing: border-box; }
+        .face { width: 90px; height: 90px; background: #4dfc47; border-radius: 50%; border: 5px solid #000; position: relative; box-shadow: 0 0 25px #4dfc47; margin-bottom: 15px; flex-shrink: 0; }
+        .face::before { content: ''; position: absolute; width: 16px; height: 16px; background: #000; border-radius: 50%; top: 22px; left: 20px; box-shadow: 35px 0 0 #000; }
+        .face::after { content: ''; position: absolute; width: 45px; height: 22px; border-bottom: 5px solid #000; border-radius: 50%; bottom: 18px; left: 22px; }
+        #chat-container { width: 100%; max-width: 400px; height: 60vh; border: 3px solid #4dfc47; display: flex; flex-direction: column; background: #080808; }
+        #chat-window { flex: 1; overflow-y: auto; padding: 15px; display: flex; flex-direction: column; gap: 10px; }
+        .msg { padding: 10px; border-radius: 5px; font-weight: bold; text-transform: uppercase; font-size: 14px; max-width: 85%; word-wrap: break-word; }
+        .ai { border: 2px solid #4dfc47; align-self: flex-start; }
+        .user { background: #4dfc47; color: #000; align-self: flex-end; }
+        .input-box { display: flex; border-top: 3px solid #4dfc47; }
+        input { flex: 1; background: none; border: none; color: #4dfc47; padding: 15px; outline: none; font-size: 16px; }
+        button { background: #4dfc47; border: none; padding: 0 20px; cursor: pointer; font-weight: bold; }
+        .shake { animation: burn 0.1s infinite; }
+        @keyframes burn { 0% { transform: scale(1); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }
+    </style>
+</head>
+<body>
+    <div class="face" id="face"></div>
+    <div id="chat-container">
+        <div id="chat-window"><div class="msg ai">¡FIRE IN THE HOLE! ENSÉÑAME ALGO. 🟢🔥</div></div>
+        <div class="input-box">
+            <input type="text" id="input" placeholder="Escribe..." autocomplete="off">
+            <button id="btn">FIRE!</button>
+        </div>
+    </div>
+    <audio id="sfx"><source src="https://www.myinstants.com/media/sounds/fire-in-the-hole-geometry-dash.mp3"></audio>
+
+<script>
+    let memory = { "hola": "¡FIRE IN THE HOLE! ¿CÓMO VA EL NIVEL? 🟢" };
+    const sfx = document.getElementById('sfx');
+
+    // ESTA FUNCIÓN LIMPIA LA VOZ
+    function cleanForVoice(text) {
+        return text
+            .replace(/[\uE000-\uF8FF]|\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|[\u2011-\u26FF]|\uD83E[\uDD10-\uDDFF]/g, '') // Borra Emojis
+            .replace(/fire in the hole/gi, '') // Borra el grito para no repetirlo
+            .replace(/[¡!¿?]/g, '') // Borra signos
+            .trim();
+    }
+
+    function botReply(text) {
+        // 1. Sonido y Sacudida
+        sfx.currentTime = 0;
+        sfx.play().catch(() => {});
+        document.getElementById('face').classList.add('shake');
+        setTimeout(() => document.getElementById('face').classList.remove('shake'), 600);
+
+        // 2. Escribir en Chat (con todo: emojis y gritos)
+        const win = document.getElementById('chat-window');
+        const d = document.createElement('div');
+        d.className = 'msg ai';
+        d.textContent = text;
+        win.appendChild(d);
+        win.scrollTop = win.scrollHeight;
+
+        // 3. Hablar (Solo lo importante)
+        const voiceText = cleanForVoice(text);
+        if (voiceText.length > 0) {
+            const ut = new SpeechSynthesisUtterance(voiceText);
+            ut.lang = 'es-ES';
+            ut.pitch = 2;
+            // Esperamos un poquito a que pase el grito inicial
+            setTimeout(() => window.speechSynthesis.speak(ut), 450);
+        }
+    }
+
+    function main() {
+        const input = document.getElementById('input');
+        const val = input.value.trim();
+        if(!val) return;
+        
+        const win = document.getElementById('chat-window');
+        const u = document.createElement('div'); u.className='msg user'; u.textContent = val;
+        win.appendChild(u);
+        input.value = '';
+
+        const low = val.toLowerCase();
+
+        // APRENDER: "X responde Y"
+        if (low.includes("responde")) {
+            const parts = low.split("responde");
+            let key = parts[0].replace("cuando te diga", "").trim();
+            let ans = parts[1].trim();
+            if(key && ans) {
+                memory[key] = ans.toUpperCase();
+                botReply("¡OK! SI DICES '" + key + "' DIRÉ '" + ans + "' 🟢");
+                return;
+            }
+        }
+
+        // CHATEAR
+        setTimeout(() => {
+            let found = false;
+            for (let k in memory) {
+                if (low.includes(k)) { botReply(memory[k]); found = true; break; }
+            }
+            if (!found) botReply("¡FIRE IN THE HOLE! 🔥");
+        }, 400);
+    }
+
+    document.getElementById('btn').onclick = main;
+    document.getElementById('input').onkeypress = (e) => { if(e.key==='Enter') main(); };
+</script>
+</body>
+</html>

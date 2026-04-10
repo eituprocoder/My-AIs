@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Claude Jr. - Sistema Analítico</title>
+    <style>
+        body {
+            background-color: #f7f7f8;
+            color: #333;
+            font-family: 'Georgia', serif;
+            display: flex;
+            justify-content: center;
+            padding: 20px;
+        }
+        #container {
+            width: 500px;
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            display: flex;
+            flex-direction: column;
+            height: 90vh;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        #header {
+            padding: 15px;
+            border-bottom: 1px solid #eee;
+            text-align: center;
+            font-weight: bold;
+            color: #d97757; /* Color estilo Claude */
+        }
+        #messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+        }
+        .msg { margin-bottom: 15px; line-height: 1.6; }
+        .user { color: #222; font-weight: bold; }
+        .bot { color: #444; border-left: 3px solid #d97757; padding-left: 10px; }
+        #input-box {
+            padding: 15px;
+            border-top: 1px solid #eee;
+            display: flex;
+        }
+        input {
+            flex: 1;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            outline: none;
+        }
+        button {
+            margin-left: 10px;
+            padding: 10px 20px;
+            background: #d97757;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+
+<div id="container">
+    <div id="header">Claude Jr</div>
+    <div id="messages"></div>
+    <div id="input-box">
+        <input type="text" id="userInput" placeholder="Pregúntame algo o enséñame (a = b)...">
+        <button onclick="enviarMensaje()">Enviar</button>
+    </div>
+</div>
+
+<script>
+    const box = document.getElementById('messages');
+    const input = document.getElementById('userInput');
+
+    // Memoria persistente
+    let memoriaClaude = JSON.parse(localStorage.getItem('memClaude')) || {};
+    let nombreUsuario = localStorage.getItem('nomClaude') || "Ethan";
+
+    function add(txt, autor) {
+        const div = document.createElement('div');
+        div.className = `msg ${autor}`;
+        div.innerHTML = `<b>${autor === 'user' ? nombreUsuario : 'Claude Jr.'}:</b> ${txt}`;
+        box.appendChild(div);
+        box.scrollTop = box.scrollHeight;
+    }
+
+    // Función de búsqueda en Wikipedia (API REST)
+    async function buscarEnWikipedia(query) {
+        try {
+            const res = await fetch(`https://es.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(query)}`);
+            const data = await res.json();
+            return data.extract || null;
+        } catch { return null; }
+    }
+
+    async function analizarRespuesta(texto) {
+        const t = texto.toLowerCase().trim();
+
+        // 1. Guardar nombre
+        if (t.includes("me llamo ")) {
+            nombreUsuario = texto.split(/me llamo /i)[1];
+            localStorage.setItem('nomClaude', nombreUsuario);
+            return `Es un placer saludarte, ${nombreUsuario}. He actualizado mis registros.`;
+        }
+
+        // 2. Aprendizaje (a = b)
+        if (t.includes("=")) {
+            const [item, definicion] = texto.split("=");
+            memoriaClaude[item.trim().toLowerCase()] = definicion.trim();
+            localStorage.setItem('memClaude', JSON.stringify(memoriaClaude));
+            return `Entendido. He procesado la información sobre "${item.trim()}" y la he almacenado de forma ética.`;
+        }
+
+        // 3. Consulta de Memoria Local
+        for (let clave in memoriaClaude) {
+            if (t.includes(clave)) {
+                return `Basado en lo que me has enseñado previamente: ${memoriaClaude[clave]}`;
+            }
+        }
+
+        // 4. Búsqueda Automática en Wikipedia (Si no sabe la respuesta)
+        if (t.length > 3 && !t.includes("hola")) {
+            add("<i>Claude está analizando fuentes externas...</i>", "bot");
+            const infoWiki = await buscarEnWikipedia(t);
+            if (infoWiki) {
+                return `Tras consultar mi base de conocimientos externa, he encontrado lo siguiente: ${infoWiki}`;
+            }
+        }
+
+        // 5. Saludos básicos
+        if (t.includes("hola")) return `Hola ${nombreUsuario}. ¿En qué puedo asistirte de manera analítica hoy?`;
+
+        return "No dispongo de información suficiente en mi memoria local ni en fuentes externas para responder con precisión. ¿Podrías enseñarme qué significa esto usando 'término = significado'?";
+    }
+
+    async function enviarMensaje() {
+        const val = input.value;
+        if (!val) return;
+
+        add(val, 'user');
+        input.value = "";
+
+        const respuesta = await analizarRespuesta(val);
+        add(respuesta, 'bot');
+    }
+
+    input.addEventListener("keypress", (e) => {
+        if (e.key === "Enter") enviarMensaje();
+    });
+
+    // Saludo inicial
+    window.onload = () => {
+        add(`Saludos, ${nombreUsuario}. Mi sistema está listo para procesar tus consultas.`, 'bot');
+    };
+</script>
+
+</body>
+</html>

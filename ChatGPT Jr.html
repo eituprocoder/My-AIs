@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>ChatGPT Jr ULTRA - Wiki Edition</title>
+
+<style>
+:root {
+  --color:#00ffff;
+  --bg:#0a0a0a;
+}
+
+body{
+  margin:0;
+  background:var(--bg);
+  color:var(--color);
+  font-family:'Courier New', monospace;
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  height:100vh;
+}
+
+#app{
+  width:450px;
+  background:#151515;
+  border:1px solid var(--color);
+  border-radius:12px;
+  box-shadow:0 0 20px var(--color);
+  overflow:hidden;
+}
+
+header{
+  padding:10px;
+  text-align:center;
+  border-bottom:1px solid var(--color);
+}
+
+#chat{
+  height:180px;
+  overflow:auto;
+  padding:10px;
+  font-size:13px;
+}
+
+.user{color:#ff0; margin-bottom: 8px;}
+.bot{color:var(--color); margin-bottom: 8px;}
+
+#controls{
+  display:flex;
+  gap:5px;
+  padding:10px;
+}
+
+input{
+  flex:1;
+  padding:8px;
+  background:#111;
+  border:1px solid var(--color);
+  color:var(--color);
+}
+
+button{
+  padding:8px;
+  background:var(--color);
+  border:none;
+  color:#000;
+  cursor:pointer;
+  font-weight:bold;
+}
+
+#imgPreview{
+  width:100%;
+  max-height:120px;
+  object-fit:cover;
+  display:none;
+}
+</style>
+</head>
+<body>
+
+<div id="app">
+<header>🤖 ChatGPT Jr ULTRA</header>
+
+<div id="chat"></div>
+
+<img id="imgPreview">
+
+<div id="controls">
+<input id="inputMsg" placeholder="Escribe /wiki [tema] o enseña...">
+<button onclick="send()">GO</button>
+</div>
+
+<div id="controls">
+<button onclick="startMic()">🎤</button>
+<button onclick="stopMic()">⛔</button>
+<input type="file" accept="image/*" onchange="analyzeImage(event)">
+<input type="color" onchange="setColor(this.value)">
+</div>
+</div>
+
+<script>
+const chat = document.getElementById("chat");
+const input = document.getElementById("inputMsg");
+const imgPreview = document.getElementById("imgPreview");
+
+// 💾 memoria
+let memory = JSON.parse(localStorage.getItem("memUltra")) || {};
+let userName = localStorage.getItem("userName") || "";
+
+// 🎨 color
+function setColor(c){
+  document.documentElement.style.setProperty('--color',c);
+  localStorage.setItem("colorUltra",c);
+}
+const savedColor = localStorage.getItem("colorUltra");
+if(savedColor) setColor(savedColor);
+
+// 🔊 hablar
+function hablar(text){
+  const u = new SpeechSynthesisUtterance(text);
+  u.lang="es-ES";
+  speechSynthesis.cancel();
+  speechSynthesis.speak(u);
+}
+
+// 💬 chat UI
+function add(text,type){
+  const d=document.createElement("div");
+  d.className=type;
+  d.textContent = (type === "bot" ? "🤖: " : "👤: ") + text;
+  chat.appendChild(d);
+  chat.scrollTop=chat.scrollHeight;
+}
+
+// 🌐 Función Wikipedia
+async function buscarWiki(tema) {
+  try {
+    const url = `https://es.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(tema)}`;
+    const response = await fetch(url);
+    const data = await response.json();
+    return data.extract || "No encontré información específica en Wikipedia.";
+  } catch (error) {
+    return "Error al conectar con la base de datos de Wikipedia.";
+  }
+}
+
+// 🧠 procesar texto
+function procesar(text){
+  const lower=text.toLowerCase();
+
+  if(lower.includes("me llamo")){
+    userName = text.split("me llamo")[1].trim();
+    localStorage.setItem("userName",userName);
+    hablar("Hola "+userName);
+    return "👤 Nombre guardado: " + userName;
+  }
+
+  if(lower.includes("mi nombre")){
+    return userName ? "Te llamas "+userName : "No sé tu nombre todavía.";
+  }
+
+  if(lower.startsWith("enseñar:")){
+    let [k,v]=text.replace(/enseñar:/i,"").split("=");
+    if(k&&v){
+      memory[k.trim().toLowerCase()] = v.trim();
+      localStorage.setItem("memUltra",JSON.stringify(memory));
+      hablar("Aprendido");
+      return "✅ He aprendido sobre " + k;
+    }
+  }
+
+  for(let key in memory){
+    if(lower.includes(key)) return memory[key];
+  }
+
+  if(lower.includes("hola")) return "Hola " + (userName||"") + ", ¿en qué te ayudo?";
+  if(lower.includes("cómo estás")) return "Estoy funcionando al 100%, Ethan.";
+
+  return "No entiendo eso. Prueba con /wiki [tema] o enséñame algo.";
+}
+
+// 💬 enviar texto (Actualizado para Wikipedia)
+async function send(){
+  const text=input.value.trim();
+  if(!text) return;
+  
+  add(text,"user");
+  input.value="";
+
+  let res;
+  if(text.toLowerCase().startsWith("/wiki ")){
+    const tema = text.substring(6);
+    add("Buscando en Wikipedia...", "bot");
+    res = await buscarWiki(tema);
+  } else {
+    res = procesar(text);
+  }
+
+  add(res,"bot");
+  hablar(res);
+}
+
+input.addEventListener("keypress",e=>{
+  if(e.key==="Enter") send();
+});
+
+// 🎤 voz
+let rec;
+function startMic(){
+  rec=new (window.SpeechRecognition||window.webkitSpeechRecognition)();
+  rec.lang="es-ES";
+  rec.onresult=async e=>{
+    let t=e.results[0][0].transcript;
+    input.value = t;
+    send();
+  };
+  rec.start();
+}
+function stopMic(){ if(rec) rec.stop(); }
+
+// 🖼️ imagen
+function analyzeImage(e){
+  const file=e.target.files[0];
+  if(!file) return;
+  const url=URL.createObjectURL(file);
+  imgPreview.src=url;
+  imgPreview.style.display="block";
+  let msg="Imagen cargada. ";
+  if(file.type.includes("png")) msg+="Es un PNG.";
+  if(file.type.includes("jpeg")) msg+="Es un JPG.";
+  add("📷 imagen subida","user");
+  add(msg,"bot");
+  hablar(msg);
+}
+</script>
+</body>
+</html>
