@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Crafty IA - Aprendizaje Directo</title>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; background: #1a1a1a; color: #eee; text-align: center; padding: 20px; }
+        #chat-box { 
+            width: 90%; max-width: 600px; height: 400px; margin: 20px auto; 
+            background: #252525; padding: 15px; overflow-y: auto; 
+            border: 4px solid #4e9a06; border-radius: 12px;
+        }
+        .msg { margin: 10px 0; padding: 10px; border-radius: 8px; text-align: left; }
+        .user-msg { background: #2980b9; margin-left: 20%; }
+        .ai-msg { background: #4e9a06; margin-right: 20%; }
+        .info-bar { color: #888; font-size: 0.9em; margin-bottom: 10px; }
+        input { padding: 12px; width: 60%; border-radius: 5px; border: none; background: #333; color: white; }
+        button { padding: 12px 20px; cursor: pointer; background: #4e9a06; color: white; border: none; border-radius: 5px; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+    <h1>🤖 Crafty IA</h1>
+    <div class="info-bar">Enseña usando: <b>pregunta = respuesta</b></div>
+    
+    <div id="chat-box"></div>
+    
+    <input type="text" id="userInput" placeholder="Ej: creeper = ¡Sss-boom! o busca dirt...">
+    <button onclick="sendMessage()">Enviar</button>
+
+    <script>
+        let brain = JSON.parse(localStorage.getItem('craftyBrain')) || {
+            "hola": "¡Hola! Soy Crafty. ¿Qué vamos a craftear?",
+            "diamante": "¡El mineral más brillante! Se pica con pico de hierro o mejor."
+        };
+
+        function speak(text) {
+            window.speechSynthesis.cancel();
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.lang = 'es-ES';
+            window.speechSynthesis.speak(utterance);
+        }
+
+        function addMessage(sender, text, type) {
+            const box = document.getElementById('chat-box');
+            box.innerHTML += `<div class="msg ${type}"><strong>${sender}:</strong> ${text}</div>`;
+            box.scrollTop = box.scrollHeight;
+        }
+
+        async function searchMinecraftAPI(item) {
+            try {
+                const formatted = item.toLowerCase().replace(/\s+/g, '_');
+                const response = await fetch(`https://minecraft-api.vercel.app/api/items/${formatted}`);
+                if (response.ok) {
+                    const data = await response.json();
+                    return `Info de API: El objeto ${data.name} tiene el ID ${data.namespacedId}.`;
+                }
+                return null;
+            } catch (e) { return null; }
+        }
+
+        async function sendMessage() {
+            const input = document.getElementById('userInput');
+            const rawMessage = input.value.trim();
+            if (!rawMessage) return;
+
+            addMessage("Tú", rawMessage, "user-msg");
+            input.value = "";
+
+            // Lógica de aprendizaje: ¿Contiene un "="?
+            if (rawMessage.includes("=")) {
+                const parts = rawMessage.split("=");
+                const question = parts[0].toLowerCase().trim();
+                const answer = parts[1].trim();
+
+                if (question && answer) {
+                    brain[question] = answer;
+                    localStorage.setItem('craftyBrain', JSON.stringify(brain));
+                    const reply = `¡Entendido! Ahora ya sé que cuando digas "${question}", debo responder: "${answer}".`;
+                    addMessage("Crafty", reply, "ai-msg");
+                    speak(reply);
+                }
+                return;
+            }
+
+            // Lógica de respuesta normal
+            const lowerMsg = rawMessage.toLowerCase();
+            
+            if (brain[lowerMsg]) {
+                addMessage("Crafty", brain[lowerMsg], "ai-msg");
+                speak(brain[lowerMsg]);
+            } else {
+                // Si no está en memoria, intentar API
+                const apiResult = await searchMinecraftAPI(lowerMsg);
+                if (apiResult) {
+                    addMessage("Crafty", apiResult, "ai-msg");
+                    speak(apiResult);
+                } else {
+                    const failMsg = "No conozco eso. Enséñame usando: 'pregunta = respuesta'";
+                    addMessage("Crafty", failMsg, "ai-msg");
+                    speak(failMsg);
+                }
+            }
+        }
+    </script>
+</body>
+</html>

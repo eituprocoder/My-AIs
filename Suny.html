@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Suny AI - Personalidad Dinámica</title>
+    <style>
+        :root { --suny-main: #ffcc00; --bg: #fdf6e3; --text: #5c4b00; }
+        body { font-family: 'Segoe UI', sans-serif; background-color: var(--bg); color: var(--text); display: flex; flex-direction: column; justify-content: center; align-items: center; height: 100vh; margin: 0; transition: background-color 1s ease; }
+        
+        #chat-container { width: 450px; height: 600px; background: white; border-radius: 25px; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 20px 50px rgba(0,0,0,0.1); border: 2px solid var(--suny-main); }
+        
+        #header { background: var(--suny-main); padding: 15px; text-align: center; font-weight: bold; font-size: 1.2em; display: flex; justify-content: space-between; align-items: center; color: #fff; }
+        
+        #messages { flex: 1; padding: 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; background: #fffdf9; }
+        .msg { padding: 12px 16px; border-radius: 20px; max-width: 75%; font-size: 14px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+        .user { align-self: flex-end; background: #fff3bf; color: #856404; border-bottom-right-radius: 2px; }
+        .bot { align-self: flex-start; background: var(--suny-main); color: white; border-bottom-left-radius: 2px; }
+        
+        #input-area { display: flex; padding: 15px; background: white; border-top: 1px solid #eee; gap: 10px; }
+        input { flex: 1; border: 2px solid #eee; padding: 12px; border-radius: 25px; outline: none; transition: 0.3s; }
+        input:focus { border-color: var(--suny-main); }
+        button { background: var(--suny-main); border: none; color: white; width: 45px; height: 45px; border-radius: 50%; cursor: pointer; font-size: 1.2em; transition: 0.3s; }
+        button:hover { transform: rotate(15deg) scale(1.1); }
+        
+        .controls { display: flex; gap: 5px; }
+        input[type="color"] { border: none; width: 25px; height: 25px; border-radius: 50%; cursor: pointer; }
+    </style>
+</head>
+<body>
+
+<div id="chat-container">
+    <div id="header">
+        <span>☀️ SUNY AI</span>
+        <div class="controls">
+            <input type="color" id="colorPicker" onchange="updateTheme(this.value)">
+            <button onclick="resetSuny()" style="font-size: 12px; background: rgba(0,0,0,0.2); width: auto; height: auto; padding: 5px 10px; border-radius: 10px;">Reset</button>
+        </div>
+    </div>
+    
+    <div id="messages"></div>
+    
+    <div id="input-area">
+        <input type="text" id="userInput" placeholder="¡Dime algo lindo!" autocomplete="off">
+        <button onclick="sendMessage()">➔</button>
+    </div>
+</div>
+
+<script>
+    const messagesDiv = document.getElementById('messages');
+    const userInput = document.getElementById('userInput');
+
+    // 1. Datos Persistentes
+    let sunyBrain = JSON.parse(localStorage.getItem('suny_brain')) || {
+        "hola": "¡Hola, rayito de sol! ¿Cómo va tu día?",
+        "quien eres": "Soy Suny, una IA local diseñada para iluminar tu navegador.",
+        "feliz": "¡Qué alegría! Tu energía positiva me hace brillar más.",
+        "triste": "Oh, lamento escuchar eso. ¡Aquí tienes un abrazo virtual! ☀️"
+    };
+
+    let history = JSON.parse(localStorage.getItem('suny_history')) || [];
+    let currentTheme = localStorage.getItem('suny_theme') || '#ffcc00';
+
+    function updateTheme(color) {
+        document.documentElement.style.setProperty('--suny-main', color);
+        localStorage.setItem('suny_theme', color);
+    }
+
+    function sendMessage() {
+        const text = userInput.value.trim();
+        if (!text) return;
+
+        addMessage(text, 'user');
+        saveMsg(text, 'user');
+
+        if (text.toLowerCase().startsWith("aprende:")) {
+            learn(text);
+        } else {
+            generateResponse(text.toLowerCase());
+        }
+        userInput.value = "";
+    }
+
+    function learn(input) {
+        try {
+            const content = input.split(":")[1].split("=");
+            const key = content[0].trim().toLowerCase();
+            const val = content[1].trim();
+            sunyBrain[key] = val;
+            localStorage.setItem('suny_brain', JSON.stringify(sunyBrain));
+            
+            const msg = `¡Genial! He guardado "${key}" en mis recuerdos.`;
+            setTimeout(() => { addMessage(msg, 'bot'); saveMsg(msg, 'bot'); speak(msg); }, 500);
+        } catch (e) {
+            addMessage("Usa el formato -> aprende: pregunta = respuesta", 'bot');
+        }
+    }
+
+    function generateResponse(text) {
+        // Efecto visual: Cambio de color según sentimiento
+        if(text.includes("triste") || text.includes("mal")) document.body.style.backgroundColor = "#d1d8e0";
+        if(text.includes("feliz") || text.includes("bien")) document.body.style.backgroundColor = "#fdf6e3";
+
+        setTimeout(() => {
+            let res = "Eso suena interesante, pero aún no sé qué responder. ¡Enséñame!";
+            for (let key in sunyBrain) {
+                if (text.includes(key)) {
+                    res = sunyBrain[key];
+                    break;
+                }
+            }
+            addMessage(res, 'bot');
+            saveMsg(res, 'bot');
+            speak(res);
+        }, 600);
+    }
+
+    function addMessage(text, sender) {
+        const div = document.createElement('div');
+        div.className = `msg ${sender}`;
+        div.innerText = text;
+        messagesDiv.appendChild(div);
+        messagesDiv.scrollTop = messagesDiv.scrollHeight;
+    }
+
+    function saveMsg(text, sender) {
+        history.push({ text, sender });
+        localStorage.setItem('suny_history', JSON.stringify(history));
+    }
+
+    function speak(text) {
+        const synth = window.speechSynthesis;
+        const utter = new SpeechSynthesisUtterance(text);
+        utter.lang = 'es-MX'; // Un toque diferente de región
+        utter.rate = 1.0;
+        utter.pitch = 1.4; // Voz muy alegre y aguda
+        synth.speak(utter);
+    }
+
+    function resetSuny() {
+        if(confirm("¿Reiniciar la memoria de Suny?")) {
+            localStorage.clear();
+            location.reload();
+        }
+    }
+
+    window.onload = () => {
+        updateTheme(currentTheme);
+        document.getElementById('colorPicker').value = currentTheme;
+        if(history.length > 0) {
+            history.forEach(m => addMessage(m.text, m.sender));
+        } else {
+            addMessage("¡Hola! Soy Suny. ¡Qué gusto verte por aquí!", 'bot');
+        }
+    };
+
+    userInput.addEventListener("keypress", (e) => { if(e.key === "Enter") sendMessage(); });
+</script>
+
+</body>
+</html>
