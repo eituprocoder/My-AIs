@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>DeepSeek Jr. - Code Mind</title>
+    <style>
+        body { background: #001529; color: #fff; font-family: 'Courier New', monospace; padding: 20px; }
+        #terminal { max-width: 600px; margin: auto; background: #000c17; border: 1px solid #003a8c; padding: 20px; border-radius: 8px; }
+        code { background: #111; color: #52c41a; display: block; padding: 10px; margin-top: 10px; border-radius: 4px; border: 1px solid #333; }
+        input { width: 100%; background: transparent; border: none; border-bottom: 1px solid #003a8c; color: #00ebff; padding: 10px; outline: none; }
+    </style>
+</head>
+<body>
+<div id="terminal">
+    <div style="color: #00ebff;">DeepSeek_Jr > Initialized...</div>
+    <div id="output" style="margin: 20px 0;"></div>
+    <input type="text" id="cmd" placeholder="comando = código o texto..." onkeypress="if(event.key==='Enter') run()">
+</div>
+<script>
+    let codeDB = JSON.parse(localStorage.getItem('deepDB')) || {};
+    function run() {
+        let input = document.getElementById('cmd');
+        let out = document.getElementById('output');
+        let val = input.value;
+        if(val.includes('=')) {
+            let [k, v] = val.split('=');
+            codeDB[k.trim().toLowerCase()] = v.trim();
+            localStorage.setItem('deepDB', JSON.stringify(codeDB));
+            out.innerHTML = "Memoria de script actualizada.";
+        } else {
+            let res = codeDB[val.toLowerCase()] || "Comando no definido.";
+            if(res.includes('function') || res.includes('{') || res.includes('var')) {
+                out.innerHTML = `Respuesta técnica: <code>${res}</code>`;
+            } else {
+                out.innerHTML = `Respuesta: ${res}`;
+            }
+        }
+        input.value = "";
+    }
+</script>
+</body>
+</html>
